@@ -1,28 +1,59 @@
 import { useState } from "react";
 import { Shield, ShieldAlert, CheckCircle, XCircle } from 'lucide-react';
+import { callFlask } from "../APIs/callFlask";
 
 
 const HomePage = () => {
   const [url, setUrl] = useState('');
+  const [clearAnalysisResult, setClearAnalysisResult] = useState<boolean>(false)
   const [analysisResult, setAnalysisResult] = useState<{
     safe: boolean;
     score: number;
+    type: string;
     threats: string[];
     recommendations: string[];
   } | null>(null);
 
-  const handleAnalyze = () => {
-    // Simulated analysis result - in production, this would come from your backend
-    setAnalysisResult({
-      safe: true,
-      score: 92,
-      threats: [],
+  const getRandomScore = (min: number, max: number): number => {
+    return Math.floor(Math.random() * (max - min) + min);
+  }
+
+  const handleAnalyze = async (url: string): Promise<boolean> => {
+    if (url.trim() == '') {
+      alert('Enter an url')
+      return false;
+    }
+    const result = await callFlask(url);
+
+    const baseResult = {
+      safe: false,
+      score: getRandomScore(20, 50),
+      type: result.prediction,
+      threats: ['Unknown threats detected', 'Potential malware'],
       recommendations: [
         'Enable HTTPS for all connections',
         'Update security headers',
-        'Implement CSP policy'
-      ]
-    });
+        'Implement CSP policy',
+      ],
+    };
+
+    if (result.prediction === 'benign') {
+      baseResult.safe = true;
+      baseResult.score = getRandomScore(90, 100);
+      baseResult.threats = [];
+    }
+    else if (result.prediction === 'phishing') {
+      baseResult.score = getRandomScore(50, 80);
+      baseResult.threats = ['Credential theft', 'Fake login pages', 'Email phishing links'];
+    }
+    else if (result.prediction === 'defacement') {
+      baseResult.score = getRandomScore(50, 80);
+      baseResult.threats = ['Unauthorized content changes', 'Malicious scripts injected'];
+    }
+
+    setAnalysisResult(baseResult);
+    return true;
+
   };
 
   return (
@@ -39,7 +70,7 @@ const HomePage = () => {
         }}
       />
       <div className="absolute inset-0 -z-20 bg-gradient-to-br from-[#1a1a2e] to-[#2a1a4a]" />
-      
+
       <h1 className="text-4xl md:text-6xl font-bold mb-8 text-center">
         <span className="bg-gradient-to-r from-purple-400 to-pink-600 bg-clip-text text-transparent">
           WebAI Hub
@@ -63,11 +94,20 @@ const HomePage = () => {
               placeholder="Enter website URL (e.g., https://example.com)"
               className="flex-1 px-6 py-4 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-purple-500/50 text-lg"
             />
-            <button 
-              onClick={handleAnalyze}
+            <button
+              onClick={() => {
+                if (!clearAnalysisResult) {
+                  handleAnalyze(url).then((status) => status && setClearAnalysisResult(true))
+                }
+                else {
+                  setAnalysisResult(null);
+                  setUrl('');
+                  setClearAnalysisResult(false);
+                }
+              }}
               className="px-8 py-4 bg-gradient-to-r from-purple-400 to-pink-600 rounded-xl text-white font-semibold hover:opacity-90 transition-all duration-300 shadow-lg hover:shadow-purple-500/20"
             >
-              Analyze Now
+              {clearAnalysisResult ? 'Clear' : 'Analyze Now'}
             </button>
           </div>
         </div>
@@ -105,7 +145,7 @@ const HomePage = () => {
                 </div>
               </div>
               <div className="w-full bg-white/10 rounded-full h-3 p-0.5">
-                <div 
+                <div
                   className="h-full rounded-full bg-gradient-to-r from-purple-400 to-pink-600 shadow-lg transition-all duration-500"
                   style={{ width: `${analysisResult.score}%` }}
                 />
@@ -116,7 +156,7 @@ const HomePage = () => {
               <div className="mb-6 p-6 rounded-xl bg-red-500/10 border border-red-500/20">
                 <h3 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
                   <ShieldAlert className="text-red-400" size={24} />
-                  Security Threats
+                  {analysisResult.type.charAt(0).toUpperCase() + analysisResult.type.slice(1)}
                 </h3>
                 <div className="space-y-3">
                   {analysisResult.threats.map((threat, index) => (
